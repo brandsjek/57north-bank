@@ -24,13 +24,15 @@ mod barcode;
 mod completion;
 mod db;
 mod products;
+mod market;
 
-const FORBIDDEN_USERS: [&str; 16] = [
+const FORBIDDEN_USERS: [&str; 17] = [
     "help",
     "?",
     "hilfe",
     "reload",
     "products",
+    "market",
     "adduser",
     "deposit",
     "users",
@@ -57,7 +59,7 @@ impl Cart {
     }
 
     fn total(&self) -> u32 {
-        self.products.iter().map(|p| p.price).sum()
+        self.products.iter().map(|p| (p.ben_price + p.space_profit)).sum()
     }
 
     fn disp_total(&self) -> String {
@@ -67,7 +69,11 @@ impl Cart {
     fn print(&self) {
         println!("{}", Style::new().bold().underline().paint("Current cart"));
         for product in &self.products {
-            println!("- {} ({})", product.name, product.disp_price());
+            if product.beneficiary.is_empty() {
+                println!("- {} ({})", product.name, product.disp_price());
+            } else {
+                println!("- {}, sold by {} ({})", product.name, product.beneficiary, product.disp_price());
+            }
         }
         println!("Total: {}", self.disp_total());
     }
@@ -86,6 +92,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(p) => p,
         Err(e) => {
             println!("Error, unable to load products: {}", e);
+            return Ok(());
+        }
+    };
+    let mut market_store = match market::read_market() {
+        Ok(p) => p,
+        Err(e) => {
+            println!("Error, unable to load market: {}", e);
             return Ok(());
         }
     };
@@ -228,6 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "regcard" => register_card(&args, &db, &mut card_rx_handle).await,
                 "delcard" => delete_card(&args, &db, &mut card_rx_handle).await,
                 "deposit" => deposit(&db, &args),
+                "market" => market(&market_store),
                 "users" => users(&db),
                 "deposits" => deposits(&db),
                 "purchases" => purchases(&db),
@@ -270,6 +284,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let c_cart = cart.as_mut().unwrap();
                             c_cart.products.push(product.clone());
                             c_cart.print();
+                        } else if let Some(marketitem) = market_store.get(&barcode) {
+                            println!("Adding {} to cart", marketitem.name);
+                            if cart.is_none() {
+                                cart = Some(Cart::new());
+                            }
+
+                            let c_cart = cart.as_mut().unwrap();
+                            c_cart.products.push(marketitem.clone());
+                            c_cart.print();
                         } else {
                             println!("Unknown product");
                         }
@@ -303,6 +326,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         for p in products {
                                             println!("- {} ({})", p.name, p.disp_price());
                                         }
+                                    }
+                                    db::TransactionType::MarketSale { amount, product, space_profit, sold_to } => {
+                                        println!("Sold {} to {} (total £{:.2})", product.name.to_string(), sold_to.to_string(), *amount as f64 / 100.0);
                                     }
                                 }
                                 println!("Timestamp: {}", t.timestamp);
@@ -362,6 +388,9 @@ fn user_info(user: (User, Vec<Transaction>)) {
                 for p in products {
                     println!("- {} ({})", p.name, p.disp_price());
                 }
+            }
+            db::TransactionType::MarketSale { amount, product, space_profit, sold_to } => {
+                println!("Sold {} to {} (total £{:.2})", product.name.to_string(), sold_to.to_string(), *amount as f64 / 100.0);
             }
         }
         println!("Timestamp: {}", t.timestamp);
@@ -445,6 +474,13 @@ fn products(products: &products::Products) {
     println!("{}", Style::new().underline().paint("Product listing"));
     for (barcode, product) in products {
         println!("{} - {} ({})", product.name, product.disp_price(), barcode);
+    }
+}
+
+fn market(market: &market::MarketItems) {
+    println!("{}", Style::new().underline().paint("Market product listing"));
+    for (barcode, marketitem) in market {
+        println!("{} - {} ({})", marketitem.name, marketitem.disp_price_verbose(), barcode);
     }
 }
 

@@ -1,0 +1,6 @@
+# Space seperated lines, consisting of:
+# <barcode> <price in pence> <profit for space in pence> <beneficiary> <descriptor>
+# Blank lines and lines with a # at the start are ignored
+# 6, 8, 12, 13, and 14 digit barcodes accepted
+
+2610400000012 100 10 flimpie Bonuskaart! test product

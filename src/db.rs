@@ -62,6 +62,12 @@ pub enum TransactionType {
         amount: u32,
         method: DepositMethod,
     },
+    MarketSale {
+        amount: u32,
+        space_profit: u32,
+        product: crate::products::Product,
+        sold_to: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Copy)]
@@ -150,6 +156,21 @@ impl DB {
                     u.clone()
                 }
             };
+
+            for product in cart.products.clone().into_iter() {
+                if !product.beneficiary.is_empty() {
+                    data.transactions.push(Transaction {
+                        timestamp: Utc::now(),
+                        actor: TransactionActor::User(product.beneficiary.to_string()),
+                        transaction: TransactionType::MarketSale {
+                            amount: product.ben_price,
+                            space_profit: product.space_profit,
+                            product: product,
+                            sold_to: id.to_string()
+                        },
+                    });
+                }
+            }
 
             data.transactions.push(Transaction {
                 timestamp: Utc::now(),

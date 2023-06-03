@@ -4,12 +4,21 @@ pub type Products = std::collections::HashMap<crate::barcode::Barcode, Product>;
 pub struct Product {
     pub barcode: crate::barcode::Barcode,
     pub name: String,
-    pub price: u32,
+    pub ben_price: u32,
+    pub space_profit: u32,
+    pub beneficiary: String
 }
 
 impl Product {
     pub fn disp_price(&self) -> String {
-        format!("£{:.2}", self.price as f64 / 100.0)
+        format!("£{:.2}", (self.ben_price + self.space_profit) as f64 / 100.0)
+    }
+    pub fn disp_price_verbose(&self) -> String {
+        if self.beneficiary.is_empty() {
+            self.disp_price() // it is not necessary to display the space/beneficiary cut if this is not a market product
+        } else {
+            format!("£{:.2} (of which £{:.2} will go to {})", (self.ben_price + self.space_profit) as f64 / 100.0, self.ben_price as f64 / 100.0, self.beneficiary)
+        }
     }
 }
 
@@ -56,7 +65,9 @@ pub fn read_products() -> Result<Products, String> {
 
         products.insert(barcode.clone(), Product {
             name: descriptor.to_string(),
-            price,
+            ben_price: price,
+            space_profit: 0,
+            beneficiary: "".to_string(), // products have no beneficiary because they are sold by the space
             barcode,
         });
     }
